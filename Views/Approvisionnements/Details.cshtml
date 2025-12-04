@@ -1,0 +1,147 @@
+@model Approvisionnement
+@{
+    ViewData["Title"] = "Détails de l'Approvisionnement";
+}
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="bi bi-eye me-2"></i>Approvisionnement @Model.Reference
+        </h5>
+        <div>
+            <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-warning btn-sm">
+                <i class="bi bi-pencil me-1"></i>Modifier
+            </a>
+            <a asp-action="Index" class="btn btn-outline-primary btn-sm ms-2">
+                <i class="bi bi-arrow-left me-1"></i>Retour à la liste
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h6 class="text-muted mb-3">Informations générales</h6>
+                
+                <dl class="row">
+                    <dt class="col-sm-4">Référence</dt>
+                    <dd class="col-sm-8"><strong>@Model.Reference</strong></dd>
+                    
+                    <dt class="col-sm-4">Date</dt>
+                    <dd class="col-sm-8">@Model.DateApprovisionnement.ToString("dd MMMM yyyy")</dd>
+                    
+                    <dt class="col-sm-4">Fournisseur</dt>
+                    <dd class="col-sm-8">@Model.Fournisseur?.Nom</dd>
+                    
+                    <dt class="col-sm-4">Statut</dt>
+                    <dd class="col-sm-8">
+                        @switch (Model.Statut)
+                        {
+                            case StatutApprovisionnement.Recu:
+                                <span class="badge bg-success">Reçu</span>
+                                break;
+                            case StatutApprovisionnement.EnAttente:
+                                <span class="badge bg-warning text-dark">En attente</span>
+                                break;
+                            case StatutApprovisionnement.Annule:
+                                <span class="badge bg-danger">Annulé</span>
+                                break;
+                        }
+                    </dd>
+                    
+                    @if (!string.IsNullOrEmpty(Model.Observations))
+                    {
+                        <dt class="col-sm-4">Observations</dt>
+                        <dd class="col-sm-8">@Model.Observations</dd>
+                    }
+                </dl>
+            </div>
+            
+            <div class="col-md-6">
+                <h6 class="text-muted mb-3">Changer le statut</h6>
+                <div class="btn-group" role="group">
+                    <form asp-action="UpdateStatut" method="post" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <input type="hidden" name="statut" value="@StatutApprovisionnement.EnAttente" />
+                        <button type="submit" class="btn @(Model.Statut == StatutApprovisionnement.EnAttente ? "btn-warning" : "btn-outline-warning")">
+                            En attente
+                        </button>
+                    </form>
+                    <form asp-action="UpdateStatut" method="post" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <input type="hidden" name="statut" value="@StatutApprovisionnement.Recu" />
+                        <button type="submit" class="btn @(Model.Statut == StatutApprovisionnement.Recu ? "btn-success" : "btn-outline-success")">
+                            Reçu
+                        </button>
+                    </form>
+                    <form asp-action="UpdateStatut" method="post" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <input type="hidden" name="statut" value="@StatutApprovisionnement.Annule" />
+                        <button type="submit" class="btn @(Model.Statut == StatutApprovisionnement.Annule ? "btn-danger" : "btn-outline-danger")">
+                            Annulé
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <hr class="my-4" />
+        
+        <h6 class="text-muted mb-3">Articles de l'approvisionnement</h6>
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Article</th>
+                        <th class="text-center">Quantité</th>
+                        <th class="text-end">Prix unitaire</th>
+                        <th class="text-end">Montant</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{
+                        int index = 1;
+                    }
+                    @foreach (var ligne in Model.Lignes)
+                    {
+                        <tr>
+                            <td>@index</td>
+                            <td>@ligne.Article?.Nom</td>
+                            <td class="text-center">@ligne.Quantite</td>
+                            <td class="text-end">@ligne.PrixUnitaire.ToString("N0") FCFA</td>
+                            <td class="text-end">@ligne.Montant.ToString("N0") FCFA</td>
+                        </tr>
+                        index++;
+                    }
+                </tbody>
+                <tfoot>
+                    <tr class="table-primary">
+                        <td colspan="4" class="text-end"><strong>Total général:</strong></td>
+                        <td class="text-end"><strong>@Model.MontantTotal.ToString("N0") FCFA</strong></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        
+        <div class="d-flex justify-content-between mt-4">
+            <form asp-action="Delete" asp-route-id="@Model.Id" method="post" 
+                  onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cet approvisionnement ?');">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-outline-danger">
+                    <i class="bi bi-trash me-1"></i>Supprimer
+                </button>
+            </form>
+            <div>
+                <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">
+                    <i class="bi bi-pencil me-1"></i>Modifier
+                </a>
+                <a asp-action="Index" class="btn btn-primary ms-2">
+                    <i class="bi bi-list me-1"></i>Retour à la liste
+                </a>
+            </div>
+        </div>
+    </div>
+</div>

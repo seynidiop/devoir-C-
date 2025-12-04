@@ -1,0 +1,282 @@
+@model ApprovisionnementCreateViewModel
+@{
+    ViewData["Title"] = "Nouvel Approvisionnement";
+}
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="bi bi-plus-circle me-2"></i>Nouvel approvisionnement
+        </h5>
+        <a asp-action="Index" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Retour à la liste
+        </a>
+    </div>
+    <div class="card-body">
+        <form asp-action="Create" method="post" id="approForm">
+            @Html.AntiForgeryToken()
+            
+            <div asp-validation-summary="All" class="alert alert-danger" style="display: none;"></div>
+            
+            <div class="row">
+                <!-- Informations générales -->
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-3">Informations générales</h6>
+                    
+                    <div class="mb-3">
+                        <label asp-for="DateApprovisionnement" class="form-label"></label>
+                        <input asp-for="DateApprovisionnement" class="form-control" type="date" />
+                        <span asp-validation-for="DateApprovisionnement" class="text-danger"></span>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label asp-for="FournisseurId" class="form-label"></label>
+                        <select asp-for="FournisseurId" asp-items="Model.Fournisseurs" class="form-select">
+                            <option value="">Sélectionner un fournisseur</option>
+                        </select>
+                        <span asp-validation-for="FournisseurId" class="text-danger"></span>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Référence</label>
+                        <input type="text" class="form-control" placeholder="Générée automatiquement" disabled />
+                        <small class="text-muted">La référence sera générée automatiquement</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label asp-for="Observations" class="form-label"></label>
+                        <textarea asp-for="Observations" class="form-control" rows="3" 
+                                  placeholder="Observations ou commentaires sur cet approvisionnement"></textarea>
+                    </div>
+                </div>
+                
+                <!-- Détails de l'approvisionnement -->
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-3">Détails de l'approvisionnement</h6>
+                    
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label">Article</label>
+                                <select id="articleSelect" class="form-select">
+                                    <option value="">Sélectionner un article</option>
+                                    @foreach (var article in Model.Articles!)
+                                    {
+                                        <option value="@article.Value">@article.Text</option>
+                                    }
+                                </select>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Quantité</label>
+                                        <input type="number" id="quantiteInput" class="form-control" min="1" value="1" />
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Prix unitaire (FCFA)</label>
+                                        <input type="number" id="prixUnitaireInput" class="form-control" min="0" step="0.01" />
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Montant</label>
+                                <input type="text" id="montantPreview" class="form-control" readonly />
+                            </div>
+                            
+                            <button type="button" id="addArticleBtn" class="btn btn-success w-100">
+                                <i class="bi bi-plus me-1"></i>Ajouter l'article
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Articles ajoutés -->
+            <div class="mt-4">
+                <h6 class="text-muted">Articles ajoutés</h6>
+                <div class="table-responsive">
+                    <table class="table table-bordered" id="articlesTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Article</th>
+                                <th style="width: 120px;">Quantité</th>
+                                <th style="width: 150px;">Prix unitaire</th>
+                                <th style="width: 150px;">Montant</th>
+                                <th style="width: 80px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="articlesBody">
+                            <tr id="emptyRow">
+                                <td colspan="5" class="text-center text-muted py-3">
+                                    <i class="bi bi-inbox"></i> Aucun article ajouté
+                                </td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="table-light">
+                                <td colspan="3" class="text-end"><strong>Total:</strong></td>
+                                <td><strong id="totalMontant">0 FCFA</strong></td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Hidden inputs pour les lignes -->
+            <div id="lignesContainer"></div>
+            
+            <div class="d-flex justify-content-end mt-4">
+                <a asp-action="Index" class="btn btn-outline-secondary me-2">Annuler</a>
+                <button type="submit" class="btn btn-primary" id="submitBtn">
+                    <i class="bi bi-check-lg me-1"></i>Enregistrer l'approvisionnement
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        let lignes = [];
+        let ligneIndex = 0;
+
+        // Récupérer le prix de l'article sélectionné
+        document.getElementById('articleSelect').addEventListener('change', async function() {
+            const articleId = this.value;
+            if (articleId) {
+                try {
+                    const response = await fetch(`/Approvisionnements/GetArticlePrix/${articleId}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        document.getElementById('prixUnitaireInput').value = data.prixUnitaire;
+                        updateMontantPreview();
+                    }
+                } catch (error) {
+                    console.error('Erreur:', error);
+                }
+            }
+        });
+
+        // Calculer le montant preview
+        function updateMontantPreview() {
+            const quantite = parseFloat(document.getElementById('quantiteInput').value) || 0;
+            const prixUnitaire = parseFloat(document.getElementById('prixUnitaireInput').value) || 0;
+            const montant = quantite * prixUnitaire;
+            document.getElementById('montantPreview').value = montant.toLocaleString('fr-FR') + ' FCFA';
+        }
+
+        document.getElementById('quantiteInput').addEventListener('input', updateMontantPreview);
+        document.getElementById('prixUnitaireInput').addEventListener('input', updateMontantPreview);
+
+        // Ajouter un article
+        document.getElementById('addArticleBtn').addEventListener('click', function() {
+            const articleSelect = document.getElementById('articleSelect');
+            const articleId = articleSelect.value;
+            const articleNom = articleSelect.options[articleSelect.selectedIndex].text;
+            const quantite = parseInt(document.getElementById('quantiteInput').value) || 0;
+            const prixUnitaire = parseFloat(document.getElementById('prixUnitaireInput').value) || 0;
+
+            if (!articleId) {
+                alert('Veuillez sélectionner un article');
+                return;
+            }
+            if (quantite <= 0) {
+                alert('La quantité doit être supérieure à 0');
+                return;
+            }
+            if (prixUnitaire <= 0) {
+                alert('Le prix unitaire doit être supérieur à 0');
+                return;
+            }
+
+            const montant = quantite * prixUnitaire;
+            const ligne = {
+                index: ligneIndex,
+                articleId: articleId,
+                articleNom: articleNom,
+                quantite: quantite,
+                prixUnitaire: prixUnitaire,
+                montant: montant
+            };
+
+            lignes.push(ligne);
+            renderTable();
+            resetInputs();
+            ligneIndex++;
+        });
+
+        function renderTable() {
+            const tbody = document.getElementById('articlesBody');
+            const container = document.getElementById('lignesContainer');
+            
+            // Supprimer la ligne vide
+            const emptyRow = document.getElementById('emptyRow');
+            if (emptyRow) emptyRow.remove();
+
+            // Vider et reconstruire
+            tbody.innerHTML = '';
+            container.innerHTML = '';
+
+            if (lignes.length === 0) {
+                tbody.innerHTML = `<tr id="emptyRow">
+                    <td colspan="5" class="text-center text-muted py-3">
+                        <i class="bi bi-inbox"></i> Aucun article ajouté
+                    </td>
+                </tr>`;
+            } else {
+                lignes.forEach((ligne, i) => {
+                    // Ligne du tableau
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${ligne.articleNom}</td>
+                        <td>${ligne.quantite}</td>
+                        <td>${ligne.prixUnitaire.toLocaleString('fr-FR')} FCFA</td>
+                        <td>${ligne.montant.toLocaleString('fr-FR')} FCFA</td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLigne(${ligne.index})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+
+                    // Hidden inputs
+                    container.innerHTML += `
+                        <input type="hidden" name="Lignes[${i}].ArticleId" value="${ligne.articleId}" />
+                        <input type="hidden" name="Lignes[${i}].Quantite" value="${ligne.quantite}" />
+                        <input type="hidden" name="Lignes[${i}].PrixUnitaire" value="${ligne.prixUnitaire}" />
+                    `;
+                });
+            }
+
+            // Mettre à jour le total
+            const total = lignes.reduce((sum, l) => sum + l.montant, 0);
+            document.getElementById('totalMontant').textContent = total.toLocaleString('fr-FR') + ' FCFA';
+        }
+
+        function removeLigne(index) {
+            lignes = lignes.filter(l => l.index !== index);
+            renderTable();
+        }
+
+        function resetInputs() {
+            document.getElementById('articleSelect').value = '';
+            document.getElementById('quantiteInput').value = '1';
+            document.getElementById('prixUnitaireInput').value = '';
+            document.getElementById('montantPreview').value = '';
+        }
+
+        // Validation avant soumission
+        document.getElementById('approForm').addEventListener('submit', function(e) {
+            if (lignes.length === 0) {
+                e.preventDefault();
+                alert('Veuillez ajouter au moins un article');
+            }
+        });
+    </script>
+}
